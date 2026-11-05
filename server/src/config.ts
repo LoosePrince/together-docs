@@ -14,9 +14,6 @@ export const config = {
   secret: process.env.SESSION_SECRET || 'development-only-change-this-secret-before-deploying',
   corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173').split(','),
   publicUrl: process.env.PUBLIC_URL || 'http://localhost:3000',
-  onlyOfficeUrl: process.env.ONLYOFFICE_URL || '',
-  onlyOfficeSecret: process.env.ONLYOFFICE_JWT_SECRET || '',
-  onlyOfficeInternalUrl: process.env.ONLYOFFICE_INTERNAL_URL || 'http://host.docker.internal:3000',
   s3: {
     endpoint: process.env.S3_ENDPOINT,
     region: process.env.S3_REGION || 'auto',

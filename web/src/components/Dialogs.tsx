@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Modal from './Modal';
 
-export function PromptDialog({ title, description, placeholder, initialValue = '', confirmText = '确定', onSubmit, onClose }: {
-  title: string; description?: string; placeholder?: string; initialValue?: string; confirmText?: string;
+export function PromptDialog({ title, description, placeholder, initialValue = '', confirmText = '确定', children, onSubmit, onClose }: {
+  title: string; description?: string; placeholder?: string; initialValue?: string; confirmText?: string; children?: ReactNode;
   onSubmit: (value: string) => void | Promise<void>; onClose: () => void;
 }) {
   const [value, setValue] = useState(initialValue); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const input = useRef<HTMLInputElement>(null);
@@ -16,6 +16,7 @@ export function PromptDialog({ title, description, placeholder, initialValue = '
   return <Modal title={title} onClose={busy ? () => {} : onClose}><form className="dialog-form" onSubmit={submit}>
     {description && <p className="muted">{description}</p>}
     <input ref={input} value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} maxLength={100} />
+    {children}
     {error && <div className="form-error">{error}</div>}
     <div className="dialog-actions"><button type="button" onClick={onClose} disabled={busy}>取消</button><button className="primary" type="submit" disabled={busy}>{busy ? '处理中…' : confirmText}</button></div>
   </form></Modal>;

@@ -16,6 +16,9 @@ import { smartRoutes } from './routes/smart.js';
 import { fileRoutes } from './routes/files.js';
 import { collaborationRoutes } from './modules/collaboration.js';
 import { spreadsheetRoutes } from './routes/spreadsheets.js';
+import { workspaceRoutes } from './routes/workspace.js';
+import { officeRoutes } from './routes/office.js';
+import { typeRoutes } from './modules/types.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true, bodyLimit: 1024 * 1024 });
@@ -25,7 +28,7 @@ export async function buildApp() {
   await app.register(websocket);
   app.addHook('onRequest', authenticate);
   app.get('/api/health', async () => ({ status: 'ok' }));
-  await app.register(authRoutes); await app.register(spaceRoutes); await app.register(resourceRoutes); await app.register(shareRoutes); await app.register(smartRoutes); await app.register(fileRoutes); await app.register(collaborationRoutes); await app.register(spreadsheetRoutes);
+  await app.register(authRoutes); await app.register(spaceRoutes); await app.register(resourceRoutes); await app.register(shareRoutes); await app.register(smartRoutes); await app.register(fileRoutes); await app.register(collaborationRoutes); await app.register(spreadsheetRoutes); await app.register(workspaceRoutes); await app.register(officeRoutes); await app.register(typeRoutes);
   const webDist = path.resolve('web/dist');
   if (fs.existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist });

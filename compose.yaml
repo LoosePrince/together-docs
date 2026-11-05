@@ -13,23 +13,9 @@ services:
       LOCAL_STORAGE_DIR: /app/data/blobs
       SESSION_SECRET: ${SESSION_SECRET:?请先在 .env 中设置 SESSION_SECRET}
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
-      ONLYOFFICE_URL: ${ONLYOFFICE_URL:-http://onlyoffice}
-      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-}
-      ONLYOFFICE_INTERNAL_URL: ${ONLYOFFICE_INTERNAL_URL:-http://app:3000}
     volumes:
       - app-data:/app/data
-    restart: unless-stopped
-    # OnlyOffice 路由已完成配置接口预留；首次启动不强制依赖该容器。
-  onlyoffice:
-    image: onlyoffice/documentserver:8.3
-    profiles: ["office"]
-    environment:
-      JWT_ENABLED: "true"
-      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?使用 Office 在线编辑时请设置}
-    volumes:
-      - onlyoffice-data:/var/www/onlyoffice/Data
     restart: unless-stopped
 
 volumes:
   app-data:
-  onlyoffice-data:

@@ -15,7 +15,9 @@ export async function spaceRoutes(app: FastifyInstance) {
     const visibleProjects = projects.filter(p => account.siteAdmin || p.ownerId === account.id || projectMemberships.some(m => m.projectId === p.id));
     const projectResources = (await Promise.all(visibleProjects.map(p => db.query.resources.findMany({ where: and(eq(schema.resources.projectId, p.id), isNull(schema.resources.deletedAt)) })))).flat();
     const allResources = account.siteAdmin ? await db.query.resources.findMany({ where: isNull(schema.resources.deletedAt) }) : [...resources, ...shared.map(x => x.resource), ...projectResources];
-    return { resources: [...new Map(allResources.map(r => [r.id, r])).values()], projects: visibleProjects, memberships: projectMemberships };
+    const favorites = await db.query.favorites.findMany({ where: eq(schema.favorites.accountId, account.id) });
+    const notifications = await db.query.notifications.findMany({ where: eq(schema.notifications.accountId, account.id), orderBy: (t, { desc }) => desc(t.createdAt), limit: 20 });
+    return { resources: [...new Map(allResources.map(r => [r.id, r])).values()], projects: visibleProjects, memberships: projectMemberships, favorites: favorites.map(f => f.resourceId), notifications };
   });
   app.post('/api/projects', async (request) => {
     const account = requireAccount(request); const body = request.body as any; const projectId = id(); const createdAt = now();

@@ -5,7 +5,7 @@ import { requireAccount, audit } from '../auth.js';
 import { id, now, text } from '../utils.js';
 import { authorize } from '../modules/permissions.js';
 
-const types = ['native_document', 'native_spreadsheet', 'smart_table'];
+const types = ['folder', 'native_document', 'native_spreadsheet', 'smart_table'];
 export async function resourceRoutes(app: FastifyInstance) {
   app.post('/api/resources', async (request) => {
     const account = requireAccount(request); const body = request.body as any; const type = types.includes(body.type) ? body.type : 'native_document';
@@ -16,9 +16,14 @@ export async function resourceRoutes(app: FastifyInstance) {
         if (!account.siteAdmin) throw Object.assign(new Error('无项目编辑权限'), { statusCode: 403 });
       }
     }
+    const parentId = body.parentId || null;
+    if (parentId) {
+      const parent = await db.query.resources.findFirst({ where: eq(schema.resources.id, parentId) });
+      if (!parent || parent.type !== 'folder' || parent.deletedAt || parent.projectId !== projectId) throw Object.assign(new Error('目标文件夹不可用'), { statusCode: 400 });
+    }
     const resourceId = id(); const createdAt = now();
     db.transaction(tx => {
-      tx.insert(schema.resources).values({ id: resourceId, name: text(body.name, 1, 100), type, ownerId: account.id, projectId, createdAt, updatedAt: createdAt }).run();
+      tx.insert(schema.resources).values({ id: resourceId, name: text(body.name, 1, 100), type, ownerId: account.id, projectId, parentId, createdAt, updatedAt: createdAt }).run();
       if (type === 'smart_table') {
         tx.insert(schema.smartFields).values({ id: id(), resourceId, name: '标题', type: 'text', position: 0 }).run();
         tx.insert(schema.smartFields).values({ id: id(), resourceId, name: '状态', type: 'select', optionsJson: JSON.stringify({ options: ['未开始', '进行中', '已完成'] }), position: 1 }).run();
@@ -38,8 +43,20 @@ export async function resourceRoutes(app: FastifyInstance) {
     return { ...result.resource, role: result.role, permissionSource: result.source, personas };
   });
   app.patch('/api/resources/:id', async (request) => {
-    const account = requireAccount(request); const resourceId = (request.params as any).id; await authorize(resourceId, account.id, 'editor');
-    await db.update(schema.resources).set({ name: text((request.body as any).name, 1, 100), updatedAt: now() }).where(eq(schema.resources.id, resourceId));
+    const account = requireAccount(request); const resourceId = (request.params as any).id; await authorize(resourceId, account.id, 'editor'); const body = request.body as any;
+    const patch: Record<string, unknown> = { updatedAt: now() };
+    if (body.name !== undefined) patch.name = text(body.name, 1, 100);
+    if (body.parentId !== undefined) {
+      const parentId = body.parentId || null;
+      if (parentId) {
+        if (parentId === resourceId) throw Object.assign(new Error('文件夹不能移动到自身内部'), { statusCode: 400 });
+        const parent = await db.query.resources.findFirst({ where: eq(schema.resources.id, parentId) });
+        const resource = await db.query.resources.findFirst({ where: eq(schema.resources.id, resourceId) });
+        if (!parent || parent.type !== 'folder' || parent.projectId !== resource?.projectId) throw Object.assign(new Error('目标文件夹不可用'), { statusCode: 400 });
+      }
+      patch.parentId = parentId;
+    }
+    await db.update(schema.resources).set(patch).where(eq(schema.resources.id, resourceId));
     return { ok: true };
   });
   app.delete('/api/resources/:id', async (request) => {

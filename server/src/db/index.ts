@@ -31,8 +31,24 @@ CREATE TABLE IF NOT EXISTS file_objects (id TEXT PRIMARY KEY, key TEXT NOT NULL 
 CREATE TABLE IF NOT EXISTS versions (id TEXT PRIMARY KEY, resource_id TEXT NOT NULL, name TEXT NOT NULL, data TEXT NOT NULL, file_id TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS collab_snapshots (id TEXT PRIMARY KEY, resource_id TEXT NOT NULL UNIQUE, data TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS collab_updates (id INTEGER PRIMARY KEY AUTOINCREMENT, resource_id TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS office_rooms (resource_id TEXT PRIMARY KEY, format TEXT NOT NULL, seed TEXT NOT NULL, checkpoint TEXT, checkpoint_frame INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, action TEXT NOT NULL, resource_id TEXT, detail_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS smart_views (id TEXT PRIMARY KEY, resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE, name TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'grid', configuration_json TEXT NOT NULL DEFAULT '{}', is_public INTEGER NOT NULL DEFAULT 1, position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE, account_id TEXT NOT NULL, persona_snapshot TEXT NOT NULL DEFAULT '', anchor TEXT, content TEXT NOT NULL, resolved INTEGER NOT NULL DEFAULT 0, mentions_json TEXT NOT NULL DEFAULT '[]', parent_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', resource_id TEXT, read_at TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS favorites (resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, created_at TEXT NOT NULL, PRIMARY KEY(resource_id, account_id));
+CREATE TABLE IF NOT EXISTS recent_visits (resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, visited_at TEXT NOT NULL, PRIMARY KEY(resource_id, account_id));
+CREATE INDEX IF NOT EXISTS comments_resource_idx ON comments(resource_id, created_at);
+CREATE INDEX IF NOT EXISTS notifications_account_idx ON notifications(account_id, read_at, created_at);
 `);
+// 已有部署的轻量迁移：这里只添加新增列，不重建原有数据表。
+const shareColumns = sqlite.prepare('PRAGMA table_info(share_links)').all() as { name: string }[];
+const addColumn = (name: string, definition: string) => {
+  if (!shareColumns.some(column => column.name === name)) sqlite.exec(`ALTER TABLE share_links ADD COLUMN ${name} ${definition}`);
+};
+addColumn('default_role', "TEXT NOT NULL DEFAULT 'viewer'");
+addColumn('password_hash', 'TEXT');
+addColumn('allow_view', 'INTEGER NOT NULL DEFAULT 0');
 
 export const db = drizzle(sqlite, { schema });
 export { schema };

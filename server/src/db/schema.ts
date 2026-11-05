@@ -46,7 +46,8 @@ export const shareLinks = sqliteTable('share_links', {
   id: text('id').primaryKey(), resourceId: text('resource_id').notNull().references(() => resources.id, { onDelete: 'cascade' }),
   token: text('token').notNull().unique(), createdBy: text('created_by').notNull(), enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   scope: text('scope').notNull().default('both'), allowApply: integer('allow_apply', { mode: 'boolean' }).notNull().default(true),
-  requireApproval: integer('require_approval', { mode: 'boolean' }).notNull().default(true), expiresAt: text('expires_at'),
+  requireApproval: integer('require_approval', { mode: 'boolean' }).notNull().default(true), defaultRole: text('default_role').notNull().default('viewer'),
+  passwordHash: text('password_hash'), allowView: integer('allow_view', { mode: 'boolean' }).notNull().default(false), expiresAt: text('expires_at'),
   maxUses: integer('max_uses'), uses: integer('uses').notNull().default(0), createdAt: text('created_at').notNull(),
 });
 export const permissionRequests = sqliteTable('permission_requests', {
@@ -58,6 +59,11 @@ export const permissionRequests = sqliteTable('permission_requests', {
 export const smartFields = sqliteTable('smart_fields', {
   id: text('id').primaryKey(), resourceId: text('resource_id').notNull().references(() => resources.id, { onDelete: 'cascade' }),
   name: text('name').notNull(), type: text('type').notNull(), optionsJson: text('options_json').notNull().default('{}'), position: integer('position').notNull(),
+});
+export const smartViews = sqliteTable('smart_views', {
+  id: text('id').primaryKey(), resourceId: text('resource_id').notNull().references(() => resources.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(), type: text('type').notNull().default('grid'), configurationJson: text('configuration_json').notNull().default('{}'),
+  isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(true), position: integer('position').notNull().default(0), createdAt: text('created_at').notNull(),
 });
 export const smartRecords = sqliteTable('smart_records', {
   id: text('id').primaryKey(), resourceId: text('resource_id').notNull().references(() => resources.id, { onDelete: 'cascade' }),
@@ -71,6 +77,26 @@ export const fieldPolicies = sqliteTable('field_policies', {
   id: text('id').primaryKey(), resourceId: text('resource_id').notNull(), fieldId: text('field_id').notNull().references(() => smartFields.id, { onDelete: 'cascade' }),
   accountId: text('account_id').notNull(), access: text('access').notNull(), createdAt: text('created_at').notNull(),
 });
+export const comments = sqliteTable('comments', {
+  id: text('id').primaryKey(), resourceId: text('resource_id').notNull().references(() => resources.id, { onDelete: 'cascade' }),
+  accountId: text('account_id').notNull(), personaSnapshot: text('persona_snapshot').notNull().default(''),
+  anchor: text('anchor'), content: text('content').notNull(), resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
+  mentionsJson: text('mentions_json').notNull().default('[]'), parentId: text('parent_id'), createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+});
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey(), accountId: text('account_id').notNull(), title: text('title').notNull(), body: text('body').notNull().default(''),
+  resourceId: text('resource_id'), readAt: text('read_at'), createdAt: text('created_at').notNull(),
+});
+export const favorites = sqliteTable('favorites', {
+  resourceId: text('resource_id').notNull().references(() => resources.id, { onDelete: 'cascade' }),
+  accountId: text('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').notNull(),
+}, table => [primaryKey({ columns: [table.resourceId, table.accountId] })]);
+export const recentVisits = sqliteTable('recent_visits', {
+  resourceId: text('resource_id').notNull().references(() => resources.id, { onDelete: 'cascade' }),
+  accountId: text('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  visitedAt: text('visited_at').notNull(),
+}, table => [primaryKey({ columns: [table.resourceId, table.accountId] })]);
 export const fileObjects = sqliteTable('file_objects', {
   id: text('id').primaryKey(), key: text('key').notNull().unique(), name: text('name').notNull(), mimeType: text('mime_type').notNull(),
   size: integer('size').notNull(), sha256: text('sha256').notNull(), uploadedBy: text('uploaded_by').notNull(), createdAt: text('created_at').notNull(),
@@ -84,6 +110,10 @@ export const collabSnapshots = sqliteTable('collab_snapshots', {
 });
 export const collabUpdates = sqliteTable('collab_updates', {
   id: integer('id').primaryKey({ autoIncrement: true }), resourceId: text('resource_id').notNull(), data: text('data').notNull(), createdAt: text('created_at').notNull(),
+});
+export const officeRooms = sqliteTable('office_rooms', {
+  resourceId: text('resource_id').primaryKey(), format: text('format').notNull(), seed: text('seed').notNull(),
+  checkpoint: text('checkpoint'), checkpointFrame: integer('checkpoint_frame').notNull().default(0), updatedAt: text('updated_at').notNull(),
 });
 export const auditLogs = sqliteTable('audit_logs', {
   id: text('id').primaryKey(), accountId: text('account_id').notNull(), action: text('action').notNull(),

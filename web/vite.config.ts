@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  worker: { format: 'es' },
+  optimizeDeps: { exclude: ['@betteroffice/docx', '@betteroffice/xlsx'] },
   server: {
     port: 5173,
     proxy: {

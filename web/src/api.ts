@@ -12,4 +12,4 @@ export const patch = (url: string, body: unknown) => api(url, { method: 'PATCH',
 export const put = (url: string, body: unknown) => api(url, { method: 'PUT', body: JSON.stringify(body) });
 export const del = (url: string) => api(url, { method: 'DELETE' });
 export type Account = { id: string; username: string; displayName: string; siteAdmin: boolean };
-export type Resource = { id: string; name: string; type: string; ownerId: string; projectId: string | null; updatedAt: string; fileId: string | null; role?: string; personas?: Record<string, string> };
+export type Resource = { id: string; name: string; type: string; ownerId: string; projectId: string | null; parentId: string | null; updatedAt: string; fileId: string | null; deletedAt: string | null; role?: string; personas?: Record<string, string> };

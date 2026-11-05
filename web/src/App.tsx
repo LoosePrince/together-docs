@@ -8,7 +8,6 @@ import SmartTable from './components/SmartTable';
 import Spreadsheet from './components/Spreadsheet';
 import BetterOfficeEditor from './components/BetterOfficeEditor';
 import FileViewer from './components/FileViewer';
-import AdminPanel from './components/AdminPanel';
 import ShareRequest from './components/ShareRequest';
 import Select from './components/Select';
 import { ConfirmDialog, PromptDialog } from './components/Dialogs';

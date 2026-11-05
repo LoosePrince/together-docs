@@ -2,14 +2,23 @@ import type { FastifyInstance } from 'fastify';
 import { eq, asc } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { authorize } from '../modules/permissions.js';
-import { config } from '../config.js';
+import { effectiveMaxUploadBytes } from '../modules/settings.js';
 import { id, now, sha256 } from '../utils.js';
 import { storage } from '../modules/storage.js';
+import { registerConnection, registerRoomProvider, type RoomSummary } from '../modules/runtime.js';
 
 type Client = { socket: any; accountId: string; role: string };
 type Room = { clients: Set<Client>; frames: Array<{ data: Buffer; frame: number }>; frame: number };
 const rooms = new Map<string, Room>();
 const MAX_REPLAY_BYTES = 12 * 1024 * 1024;
+
+export function officeRoomSummaries(): RoomSummary[] {
+  return [...rooms.entries()].map(([resourceId, room]) => ({
+    resourceId, kind: 'office', clients: room.clients.size,
+    detail: { replayFrames: room.frames.length, lastFrame: room.frame },
+  }));
+}
+registerRoomProvider(officeRoomSummaries);
 async function roomFor(resourceId: string, format: string) {
   let room = rooms.get(resourceId);
   if (room) return room;
@@ -41,10 +50,17 @@ export async function officeRoutes(app: FastifyInstance) {
   app.get('/ws/office/:id', { websocket: true }, async (socket, request) => {
     const resourceId = (request.params as any).id;
     const account = request.account!;
+    // 在任何 await 之前登记连接并监听关闭，避免房间加载期间断开造成幽灵连接。
+    let closed = false;
+    const unregister = registerConnection({ kind: 'office', resourceId, accountId: account.id, role: 'viewer', socket, close: () => socket.close() });
+    socket.on('close', () => { closed = true; unregister(); });
     const { resource, role } = await authorize(resourceId, account.id, 'viewer');
+    if (closed) return;
+    unregister.updateRole(role);
     if (!['office_document', 'office_spreadsheet'].includes(resource.type)) throw Object.assign(new Error('不是 Office 文档'), { statusCode: 400 });
     const format = resource.type === 'office_document' ? 'docx' : 'xlsx';
     const room = await roomFor(resourceId, format);
+    if (closed) return;
     const client: Client = { socket, accountId: account.id, role };
     room.clients.add(client);
     socket.send(JSON.stringify({ type: 'peers', count: room.clients.size }));
@@ -81,7 +97,7 @@ export async function officeRoutes(app: FastifyInstance) {
     const content = (request.body as any)?.content;
     if (typeof content !== 'string' || !content.length) throw Object.assign(new Error('保存内容为空'), { statusCode: 400 });
     const bytes = Buffer.from(content, 'base64');
-    if (bytes.length > config.maxUploadBytes) throw Object.assign(new Error('文件超出允许大小'), { statusCode: 400 });
+    if (bytes.length > effectiveMaxUploadBytes()) throw Object.assign(new Error('文件超出站点允许大小'), { statusCode: 400 });
     const digest = sha256(bytes); const key = `${digest.slice(0, 2)}/${digest}`;
     await storage.put(key, bytes);
     const fileId = id(); const createdAt = now();

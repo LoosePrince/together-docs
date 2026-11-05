@@ -4,6 +4,7 @@ import { db, schema } from '../db/index.js';
 import { requireAccount, requireSiteAdmin, issueSession, audit } from '../auth.js';
 import { hashSecret, id, now, text, token, verifySecret } from '../utils.js';
 import { config } from '../config.js';
+import { siteSettings } from '../modules/settings.js';
 
 export async function authRoutes(app: FastifyInstance) {
   app.get('/api/auth/status', async (request) => {
@@ -24,6 +25,7 @@ export async function authRoutes(app: FastifyInstance) {
     const body = request.body as any;
     const invite = await db.query.invites.findFirst({ where: eq(schema.invites.token, text(body.invite, 10, 200)) });
     if (!invite || invite.revokedAt || invite.usedAt || invite.expiresAt < now()) throw Object.assign(new Error('邀请链接无效或已使用'), { statusCode: 400 });
+    if (siteSettings().registrationMode === 'closed') throw Object.assign(new Error('站点已关闭注册'), { statusCode: 403 });
     const username = text(body.username, 3, 32).toLowerCase();
     if (!/^[a-z0-9_][a-z0-9_.-]+$/.test(username)) throw Object.assign(new Error('用户名仅支持字母、数字和 _ . -'), { statusCode: 400 });
     const accountId = id(); const createdAt = now();
@@ -47,13 +49,18 @@ export async function authRoutes(app: FastifyInstance) {
     if (request.account) await db.delete(schema.sessions).where(eq(schema.sessions.accountId, request.account.id));
     reply.clearCookie('td_session', { path: '/' }); return { ok: true };
   });
-  app.get('/api/admin/invites', async (request) => { requireSiteAdmin(request); return db.query.invites.findMany({ orderBy: (t, { desc }) => desc(t.createdAt) }); });
   app.post('/api/admin/invites', async (request) => {
     const admin = requireSiteAdmin(request); const raw = token(); const createdAt = now();
-    await db.insert(schema.invites).values({ id: id(), token: raw, createdBy: admin.id, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), createdAt });
-    return { token: raw, url: `${config.publicUrl}/?invite=${raw}`, expiresAt: new Date(Date.now() + 7 * 86400000).toISOString() };
+    const days = Number((request.body as any)?.days);
+    const expiresAt = new Date(Date.now() + (Number.isInteger(days) && days >= 1 && days <= 365 ? days : 7) * 86400000).toISOString();
+    await db.insert(schema.invites).values({ id: id(), token: raw, createdBy: admin.id, expiresAt, createdAt });
+    audit(admin.id, 'invite.create', undefined, { expiresAt });
+    return { token: raw, url: `${config.publicUrl}/?invite=${raw}`, expiresAt };
   });
-  app.delete('/api/admin/invites/:id', async (request) => { requireSiteAdmin(request); await db.update(schema.invites).set({ revokedAt: now() }).where(eq(schema.invites.id, (request.params as any).id)); return { ok: true }; });
-  app.get('/api/admin/accounts', async (request) => { requireSiteAdmin(request); return db.query.accounts.findMany({ columns: { passwordHash: false } }); });
-  app.get('/api/admin/audit', async (request) => { requireSiteAdmin(request); return db.query.auditLogs.findMany({ limit: 200, orderBy: (t, { desc }) => desc(t.createdAt) }); });
+  app.delete('/api/admin/invites/:id', async (request) => {
+    const admin = requireSiteAdmin(request);
+    await db.update(schema.invites).set({ revokedAt: now() }).where(eq(schema.invites.id, (request.params as any).id));
+    audit(admin.id, 'invite.revoke', undefined, { inviteId: (request.params as any).id });
+    return { ok: true };
+  });
 }

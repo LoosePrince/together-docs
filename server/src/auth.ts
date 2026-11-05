@@ -4,13 +4,14 @@ import { and, eq, gt } from 'drizzle-orm';
 import { db, schema } from './db/index.js';
 import { config } from './config.js';
 import { id, now, sha256, token } from './utils.js';
+import { effectiveSessionDays } from './modules/settings.js';
 
 export type Account = typeof schema.accounts.$inferSelect;
 declare module 'fastify' { interface FastifyRequest { account: Account | null } }
 
 export function issueSession(reply: FastifyReply, accountId: string) {
   const raw = token();
-  const expiresAt = new Date(Date.now() + config.sessionDays * 86400000).toISOString();
+  const expiresAt = new Date(Date.now() + effectiveSessionDays() * 86400000).toISOString();
   db.insert(schema.sessions).values({ id: id(), accountId, tokenHash: sha256(raw), expiresAt, createdAt: now() }).run();
   reply.setCookie('td_session', raw, { path: '/', httpOnly: true, sameSite: 'lax', secure: config.publicUrl.startsWith('https:'), expires: new Date(expiresAt) });
 }

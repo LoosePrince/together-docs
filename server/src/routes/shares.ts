@@ -5,6 +5,7 @@ import { requireAccount, audit } from '../auth.js';
 import { id, now, text, token, hashSecret, verifySecret } from '../utils.js';
 import { authorize } from '../modules/permissions.js';
 import { notify, notifyResourceMembers } from '../modules/notifications.js';
+import { siteSettings } from '../modules/settings.js';
 
 const activeShare = (share: typeof schema.shareLinks.$inferSelect) =>
   share.enabled && (!share.expiresAt || share.expiresAt >= now()) && (!share.maxUses || share.uses < share.maxUses);
@@ -12,12 +13,13 @@ const activeShare = (share: typeof schema.shareLinks.$inferSelect) =>
 export async function shareRoutes(app: FastifyInstance) {
   app.post('/api/resources/:id/shares', async (request) => {
     const account = requireAccount(request); const resourceId = (request.params as any).id; await authorize(resourceId, account.id, 'manager'); const body = request.body as any;
+    const settings = siteSettings();
     const raw = token(); const shareId = id();
     await db.insert(schema.shareLinks).values({
       id: shareId, resourceId, token: raw, createdBy: account.id,
       scope: ['document', 'project', 'both'].includes(body.scope) ? body.scope : 'both',
-      allowApply: body.allowApply !== false, requireApproval: body.requireApproval !== false,
-      defaultRole: ['viewer', 'commenter', 'editor'].includes(body.defaultRole) ? body.defaultRole : 'viewer',
+      allowApply: body.allowApply !== false, requireApproval: body.requireApproval !== undefined ? body.requireApproval !== false : Boolean(settings.defaultRequireApproval),
+      defaultRole: ['viewer', 'commenter', 'editor'].includes(body.defaultRole) ? body.defaultRole : String(settings.defaultShareRole),
       passwordHash: body.password ? hashSecret(text(body.password, 4, 100)) : null,
       allowView: Boolean(body.allowView), expiresAt: body.expiresAt || null,
       maxUses: Number.isInteger(body.maxUses) && body.maxUses > 0 ? body.maxUses : null,
@@ -47,7 +49,7 @@ export async function shareRoutes(app: FastifyInstance) {
     const share = await db.query.shareLinks.findFirst({ where: eq(schema.shareLinks.token, (request.params as any).token) });
     if (!share || !activeShare(share)) throw Object.assign(new Error('分享链接无效或已过期'), { statusCode: 404 });
     const resource = await db.query.resources.findFirst({ where: eq(schema.resources.id, share.resourceId) });
-    return { resourceName: resource?.name, scope: share.scope, allowApply: share.allowApply, allowView: share.allowView, defaultRole: share.defaultRole, hasPassword: Boolean(share.passwordHash), loggedIn: Boolean(request.account) };
+    return { resourceName: resource?.name, scope: share.scope, allowApply: share.allowApply, allowView: share.allowView && Boolean(siteSettings().allowAnonymousShareView), defaultRole: share.defaultRole, hasPassword: Boolean(share.passwordHash), loggedIn: Boolean(request.account) };
   });
   app.post('/api/shares/:token/apply', async (request) => {
     const account = requireAccount(request); const share = await db.query.shareLinks.findFirst({ where: eq(schema.shareLinks.token, (request.params as any).token) });

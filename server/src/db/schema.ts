@@ -119,3 +119,6 @@ export const auditLogs = sqliteTable('audit_logs', {
   id: text('id').primaryKey(), accountId: text('account_id').notNull(), action: text('action').notNull(),
   resourceId: text('resource_id'), detailJson: text('detail_json').notNull().default('{}'), createdAt: text('created_at').notNull(),
 });
+export const siteSettings = sqliteTable('site_settings', {
+  key: text('key').primaryKey(), value: text('value').notNull(), updatedAt: text('updated_at').notNull(),
+});

@@ -29,7 +29,7 @@ export default function Select({ value, options, onChange, disabled = false, pla
       <span className={!selected ? 'select-placeholder' : ''}>{selected?.label || placeholder}</span><ChevronDown size={14} />
     </button>
     {open && <div className="select-menu" role="listbox" id={listId} aria-label={label}>
-      {options.map(option => <button type="button" role="option" aria-selected={option.value === value} disabled={option.disabled} className={option.value === value ? 'selected' : ''} key={option.value} onClick={() => { onChange(option.value); setOpen(false); }}>
+      {options.map(option => <button type="button" role="option" aria-selected={option.value === value} disabled={option.disabled} className={option.value === value ? 'is-selected' : ''} key={option.value} title={typeof option.label === 'string' ? option.label : undefined} onClick={() => { onChange(option.value); setOpen(false); }}>
         <span>{option.label}</span>{option.value === value && <Check size={14} />}
       </button>)}
     </div>}

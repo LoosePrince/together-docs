@@ -7,10 +7,19 @@ import { encoding, decoding } from 'lib0';
 import { db, schema } from '../db/index.js';
 import { id, now } from '../utils.js';
 import { authorize, requireRole } from '../modules/permissions.js';
+import { registerConnection, registerRoomProvider, type RoomSummary } from './runtime.js';
 
 type Client = { socket: any; accountId: string; role: string };
 type Room = { doc: Y.Doc; awareness: awarenessProtocol.Awareness; clients: Set<Client>; accountId: string; role: string; saveTimer?: NodeJS.Timeout };
 const rooms = new Map<string, Room>();
+
+export function documentRoomSummaries(): RoomSummary[] {
+  return [...rooms.entries()].map(([resourceId, room]) => ({
+    resourceId, kind: 'document', clients: room.clients.size,
+    detail: { awarenessStates: room.awareness.getStates().size, pendingSnapshot: Boolean(room.saveTimer) },
+  }));
+}
+registerRoomProvider(documentRoomSummaries);
 
 async function loadDocument(resourceId: string) {
   const doc = new Y.Doc();
@@ -30,7 +39,13 @@ function save(resourceId: string, room: Room) {
 export async function collaborationRoutes(app: FastifyInstance) {
   app.get('/ws/documents/:id', { websocket: true }, async (socket, request) => {
     const resourceId = (request.params as any).id; const account = request.account!;
+    // 在任何 await 之前登记并挂上 close 监听，避免加载文档期间断开造成幽灵连接。
+    let closed = false;
+    const unregister = registerConnection({ kind: 'document', resourceId, accountId: account.id, role: 'viewer', socket, close: () => socket.close() });
+    socket.on('close', () => { closed = true; unregister(); });
     const { role } = await authorize(resourceId, account.id, 'viewer');
+    if (closed) return;
+    unregister.updateRole(role);
     let room = rooms.get(resourceId);
     if (!room) {
       const doc = await loadDocument(resourceId); const awareness = new awarenessProtocol.Awareness(doc);

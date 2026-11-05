@@ -2,18 +2,20 @@ import type { FastifyInstance } from 'fastify';
 import { eq, and, isNull } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { requireAccount, audit } from '../auth.js';
-import { config } from '../config.js';
+import { effectiveMaxUploadBytes } from '../modules/settings.js';
 import { authorize } from '../modules/permissions.js';
 import { storage } from '../modules/storage.js';
 import { createUploadResource } from '../modules/types.js';
 export async function fileRoutes(app: FastifyInstance) {
   app.post('/api/upload', async (request) => {
     const account = requireAccount(request);
-    const file = await request.file({ limits: { fileSize: config.maxUploadBytes, files: 1 } });
+    const maxBytes = effectiveMaxUploadBytes();
+    const file = await request.file({ limits: { fileSize: maxBytes, files: 1 } });
     if (!file) throw Object.assign(new Error('请选择文件'), { statusCode: 400 });
     const ext = file.filename.split('.').pop()?.toLowerCase() || '';
     if (['exe', 'dll', 'bat', 'cmd', 'sh', 'js', 'html', 'svg'].includes(ext)) throw Object.assign(new Error('不支持此文件类型'), { statusCode: 400 });
     const content = await file.toBuffer();
+    if (content.length > maxBytes) throw Object.assign(new Error('文件超出站点允许大小'), { statusCode: 400 });
     const projectId = String(file.fields.projectId && 'value' in file.fields.projectId ? file.fields.projectId.value : '') || null;
     if (projectId) {
       const member = await db.query.projectMembers.findFirst({ where: (t, { and, eq }) => and(eq(t.projectId, projectId), eq(t.accountId, account.id)) });

@@ -19,16 +19,23 @@ import { spreadsheetRoutes } from './routes/spreadsheets.js';
 import { workspaceRoutes } from './routes/workspace.js';
 import { officeRoutes } from './routes/office.js';
 import { typeRoutes } from './modules/types.js';
+import { adminRoutes } from './routes/admin.js';
+import { recordRequest } from './modules/runtime.js';
 
 export async function buildApp() {
-  const app = Fastify({ logger: true, bodyLimit: 1024 * 1024 });
+  const app = Fastify({ logger: true, bodyLimit: Math.ceil(config.maxUploadBytes * 1.4) + 64 * 1024 });
   await app.register(cookie);
   await app.register(cors, { origin: config.corsOrigins, credentials: true });
   await app.register(multipart, { limits: { fileSize: config.maxUploadBytes } });
   await app.register(websocket);
-  app.addHook('onRequest', authenticate);
+  app.addHook('onRequest', async request => { (request as any).requestStartedAt = process.hrtime.bigint(); await authenticate(request); });
+  app.addHook('onResponse', (request, reply, done) => {
+    const started = (request as any).requestStartedAt as bigint | undefined;
+    if (started) recordRequest(reply.statusCode, Number(process.hrtime.bigint() - started) / 1e6);
+    done();
+  });
   app.get('/api/health', async () => ({ status: 'ok' }));
-  await app.register(authRoutes); await app.register(spaceRoutes); await app.register(resourceRoutes); await app.register(shareRoutes); await app.register(smartRoutes); await app.register(fileRoutes); await app.register(collaborationRoutes); await app.register(spreadsheetRoutes); await app.register(workspaceRoutes); await app.register(officeRoutes); await app.register(typeRoutes);
+  await app.register(authRoutes); await app.register(spaceRoutes); await app.register(resourceRoutes); await app.register(shareRoutes); await app.register(smartRoutes); await app.register(fileRoutes); await app.register(collaborationRoutes); await app.register(spreadsheetRoutes); await app.register(workspaceRoutes); await app.register(officeRoutes); await app.register(typeRoutes); await app.register(adminRoutes);
   const webDist = path.resolve('web/dist');
   if (fs.existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist });
